@@ -192,7 +192,9 @@ newfs_command(const char *fstype, char *command, int use_default)
 		for (i = 0; i < (int)nitems(items); i++) {
 			if (items[i].state == 0)
 				continue;
-			if (strcmp(items[i].name, "FAT16") == 0)
+			if (strcmp(items[i].name, "FAT32") == 0)
+				strcat(command, "-F 32 -c 1");
+			else if (strcmp(items[i].name, "FAT16") == 0)
 				strcat(command, "-F 16 ");
 			else if (strcmp(items[i].name, "FAT12") == 0)
 				strcat(command, "-F 12 ");
@@ -400,7 +402,7 @@ gpart_bootcode(struct ggeom *gp)
 		    TRUE);
 		return;
 	}
-		
+
 	bootsize = lseek(bootfd, 0, SEEK_END);
 	boot = malloc(bootsize);
 	lseek(bootfd, 0, SEEK_SET);
@@ -751,6 +753,8 @@ set_default_part_metadata(const char *name, const char *scheme,
 		else if (strcmp("fat32", type) == 0 || strcmp("efi", type) == 0
 	     	    || strcmp("ms-basic-data", type) == 0)
 			md->fstab->fs_vfstype = strdup("msdosfs");
+			if (strcmp("efi", type) == 0)
+				md->fstab->fs_mntops = strdup("noauto");
 		else
 			md->fstab->fs_vfstype = strdup(type); /* Guess */
 		if (strcmp(type, "freebsd-swap") == 0) {

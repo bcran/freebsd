@@ -36,9 +36,23 @@ makefs -B little -o label=FreeBSD_Install -o version=2 ${2}.part ${1}
 rm ${1}/etc/fstab
 rm ${1}/etc/rc.conf.local
 
+
+dd if=/dev/zero of=efiboot.img bs=1k count=33292
+device=`mdconfig -a -t vnode -f efiboot.img`
+newfs_msdos -F 32 -c 1 -L EFISYS /dev/$device
+mkdir efi
+mount -t msdosfs /dev/$device efi
+mkdir -p efi/efi/boot
+cp -p "${1}/boot/loader.efi" efi/efi/boot/bootaa64.efi
+umount efi
+rmdir efi
+mdconfig -d -u $device
+
+
 mkimg -s gpt \
-    -p efi:=${1}/boot/boot1.efifat \
+    -p efi:=efiboot.img \
     -p freebsd:=${2}.part \
     -o ${2}
+rm efiboot.img
 rm ${2}.part
 

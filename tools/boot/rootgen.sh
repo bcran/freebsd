@@ -5,8 +5,6 @@
 passphrase=passphrase
 iterations=50000
 
-do_boot1_efi=0
-
 #
 # Builds all the bat-shit crazy combinations we support booting from,
 # at least for amd64. It assume you have a ~sane kernel in /boot/kernel
@@ -40,21 +38,17 @@ make_esp()
     src=$1
     dst=$2
 
-    if [ "${do_boot1_efi}" -eq 1 ]; then
-	cp ${src}/boot/boot1.efifat ${dst}
-    else
-	dd if=/dev/zero of=${dst} count=1 seek=$((100 * 1024 * 1024 / 512))
-	md=$(mdconfig -f ${dst})
-	newfs_msdos -a 32 /dev/${md}
-	mntpt=$(mktemp -d /tmp/stand-test.XXXXXX)
-	mount -t msdos /dev/${md} ${mntpt}
-#	mkdir -p ${mntpt}/efi/freebsd # not yet
-	mkdir -p ${mntpt}/efi/boot
-	cp ${src}/boot/loader.efi ${mntpt}/efi/boot/bootx64.efi
-	umount ${mntpt}
-	rmdir ${mntpt}
-	mdconfig -d -u ${md}
-    fi
+    dd if=/dev/zero of=${dst} count=1 seek=$((100 * 1024 * 1024 / 512))
+    md=$(mdconfig -f ${dst})
+    newfs_msdos -F 32 -c 2 /dev/${md}
+    mntpt=$(mktemp -d /tmp/stand-test.XXXXXX)
+    mount -t msdos /dev/${md} ${mntpt}
+#   mkdir -p ${mntpt}/efi/freebsd # not yet
+    mkdir -p ${mntpt}/efi/boot
+    cp ${src}/boot/loader.efi ${mntpt}/efi/boot/bootx64.efi
+    umount ${mntpt}
+    rmdir ${mntpt}
+    mdconfig -d -u ${md}
 }
 
 mk_nogeli_gpt_ufs_legacy() {
@@ -155,7 +149,7 @@ mk_nogeli_gpt_zfs_uefi() {
     dd if=/dev/zero of=${img} count=1 seek=$((200 * 1024 * 1024 / 512))
     md=$(mdconfig -f ${img})
     gpart create -s gpt ${md}
-    gpart add -t efi -s 800k -a 4k ${md}
+    gpart add -t efi -s 35M -a 4k ${md}
     gpart add -t freebsd-zfs -l root $md
     # install-boot will make this bootable
     zpool create -O mountpoint=none -R ${mntpt} ${pool} ${md}p2
@@ -193,7 +187,7 @@ mk_nogeli_gpt_zfs_both() {
     dd if=/dev/zero of=${img} count=1 seek=$((200 * 1024 * 1024 / 512))
     md=$(mdconfig -f ${img})
     gpart create -s gpt ${md}
-    gpart add -t efi -s 800k -a 4k ${md}
+    gpart add -t efi -s 35M -a 4k ${md}
     gpart add -t freebsd-boot -s 400k -a 4k	${md}	# <= ~540k
     gpart add -t freebsd-zfs -l root $md
     # install-boot will make this bootable
@@ -313,7 +307,7 @@ mk_nogeli_mbr_zfs_uefi() {
     dd if=/dev/zero of=${img} count=1 seek=$((200 * 1024 * 1024 / 512))
     md=$(mdconfig -f ${img})
     gpart create -s mbr ${md}
-    gpart add -t \!239 -s 800k ${md}
+    gpart add -t efi -s 35M ${md}
     gpart add -t freebsd ${md}
     gpart set -a active -i 2 ${md}
     gpart create -s bsd ${md}s2
@@ -354,7 +348,7 @@ mk_nogeli_mbr_zfs_both() {
     dd if=/dev/zero of=${img} count=1 seek=$((200 * 1024 * 1024 / 512))
     md=$(mdconfig -f ${img})
     gpart create -s mbr ${md}
-    gpart add -t \!239 -s 800k ${md}
+    gpart add -t efi -s 35M ${md}
     gpart add -t freebsd ${md}
     gpart set -a active -i 2 ${md}
     gpart create -s bsd ${md}s2
@@ -430,7 +424,7 @@ mk_geli_gpt_ufs_uefi() {
     dd if=/dev/zero of=${img} count=1 seek=$(( 200 * 1024 * 1024 / 512 ))
     md=$(mdconfig -f ${img})
     gpart create -s gpt ${md}
-    gpart add -t efi -s 800k -a 4k ${md}
+    gpart add -t efi -s 35M -a 4k ${md}
     gpart add -t freebsd-ufs -l root $md
     # install-boot will make this bootable
     echo ${passphrase} | geli init -bg -e AES-XTS -i ${iterations} -J - -l 256 -s 4096 ${md}p2
@@ -466,7 +460,7 @@ mk_geli_gpt_ufs_both() {
     dd if=/dev/zero of=${img} count=1 seek=$(( 200 * 1024 * 1024 / 512 ))
     md=$(mdconfig -f ${img})
     gpart create -s gpt ${md}
-    gpart add -t efi -s 800k -a 4k ${md}
+    gpart add -t efi -s 35M -a 4k ${md}
     gpart add -t freebsd-boot -s 400k -a 4k	${md}	# <= ~540k
     gpart add -t freebsd-ufs -l root $md
     # install-boot will make this bootable
@@ -547,7 +541,7 @@ mk_geli_gpt_zfs_uefi() {
     dd if=/dev/zero of=${img} count=1 seek=$(( 200 * 1024 * 1024 / 512 ))
     md=$(mdconfig -f ${img})
     gpart create -s gpt ${md}
-    gpart add -t efi -s 800k -a 4k ${md}
+    gpart add -t efi -s 35M -a 4k ${md}
     gpart add -t freebsd-zfs -l root $md
     # install-boot will make this bootable
     echo ${passphrase} | geli init -bg -e AES-XTS -i ${iterations} -J - -l 256 -s 4096 ${md}p2
@@ -590,7 +584,7 @@ mk_geli_gpt_zfs_both() {
     dd if=/dev/zero of=${img} count=1 seek=$(( 200 * 1024 * 1024 / 512 ))
     md=$(mdconfig -f ${img})
     gpart create -s gpt ${md}
-    gpart add -t efi -s 800k -a 4k ${md}
+    gpart add -t efi -s 35M -a 4k ${md}
     gpart add -t freebsd-boot -s 400k -a 4k	${md}	# <= ~540k
     gpart add -t freebsd-zfs -l root $md
     # install-boot will make this bootable

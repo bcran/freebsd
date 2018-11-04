@@ -36,7 +36,6 @@
 
 /* EFI partition size in bytes */
 #define	EFI_BOOTPART_SIZE	(200 * 1024 * 1024)
-#define	EFI_BOOTPART_PATH	"/boot/boot1.efifat"
 
 static const char *
 x86_bootmethod(void)
@@ -114,8 +113,10 @@ const char *
 bootpart_type(const char *scheme, const char **mountpoint)
 {
 
-	if (strcmp(x86_bootmethod(), "UEFI") == 0)
+	if (strcmp(x86_bootmethod(), "UEFI") == 0) {
+		*mountpoint = "/boot/efi";
 		return ("efi");
+    }
 
 	return ("freebsd-boot");
 }
@@ -141,16 +142,14 @@ const char *
 partcode_path(const char *part_type, const char *fs_type)
 {
 
-	if (strcmp(part_type, "GPT") == 0) {
-		if (strcmp(x86_bootmethod(), "UEFI") == 0)
-			return (EFI_BOOTPART_PATH);
-		else if (strcmp(fs_type, "zfs") == 0)
+	if (strcmp(part_type, "GPT") == 0 && strcmp(x86_bootmethod(), "UEFI") != 0) {
+		if (strcmp(fs_type, "zfs") == 0)
 			return ("/boot/gptzfsboot");
 		else
 			return ("/boot/gptboot");
 	}
 	
-	/* No partcode except for GPT */
+	/* No partcode except for non-UEFI GPT */
 	return (NULL);
 }
 

@@ -1,5 +1,6 @@
 #!/bin/sh
 #-
+# Copyright (c) 2018 Rebecca Cran
 # Copyright (c) 2017 Nathan Whitehorn
 # All rights reserved.
 #
@@ -35,6 +36,25 @@ if [ `uname -m` == powerpc ]; then
 	fi
 fi
 
-# For new-style EFI booting, add code here
-# Add boot0cfg for MBR BIOS booting?
+# Update the ESP (EFI System Partition) with the new bootloader
+if [ `sysctl -n machdep.bootmethod` == UEFI ]; then
+	mkdir -p $BSDINSTALL_CHROOT/boot/efi/EFI/BOOT
+	mkdir -p $BSDINSTALL_CHROOT/boot/efi/EFI/FreeBSD
 
+	esploader=$BSDINSTALL_CHROOT/boot/efi/EFI/FreeBSD/loader.efi
+	espbootdir=$BSDINSTALL_CHROOT/boot/efi/EFI/BOOT
+
+	cp $BSDINSTALL_CHROOT/boot/loader*.efi $esploader
+
+	if [ `uname -m` == amd64 ]; then
+		cp $esploader $loaderdstdir/BOOTx64.efi
+	elif [ `uname -m` == i386 ]; then
+		cp $esploader $espbootdir/BOOTia32.efi
+	elif [ `uname -m` == aarch64 ]; then
+		cp $esploader $espbootdir/BOOTaa64.efi
+	elif [ `uname -m` == arm ]; then
+		cp $esploader $espbootdir/BOOTarm.efi
+	fi
+fi
+
+# Add boot0cfg for MBR BIOS booting?

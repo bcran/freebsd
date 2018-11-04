@@ -51,7 +51,7 @@ CFLAGS+=	-DEFI_DEBUG
 .PATH:		${LDRSRC}
 CFLAGS+=	-I${LDRSRC}
 
-FILES=	boot1.efi boot1.efifat
+FILES=	boot1.efi
 FILESMODE_boot1.efi=	${BINMODE}
 
 LDSCRIPT=	${EFISRC}/loader/arch/${MACHINE}/ldscript.${MACHINE}
@@ -88,22 +88,7 @@ boot1.efi: ${PROG}
 		-j .rela.dyn -j .reloc -j .eh_frame \
 		--output-target=${EFI_TARGET} ${.ALLSRC} ${.TARGET}
 
-# The following inserts our objects into a template FAT file system
-# created by generate-fat.sh
 
-.include "Makefile.fat"
-
-boot1.efifat: boot1.efi
-	@set -- `ls -l ${.ALLSRC}`; \
-	x=$$(($$5-${BOOT1_MAXSIZE})); \
-	if [ $$x -ge 0 ]; then \
-	    echo "boot1 $$x bytes too large; regenerate FAT templates?" >&2 ;\
-	    exit 1; \
-	fi
-	echo ${.OBJDIR}
-	xz -d -c ${BOOTSRC}/efi/boot1/fat-${MACHINE}.tmpl.xz > ${.TARGET}
-	${DD} if=${.ALLSRC} of=${.TARGET} seek=${BOOT1_OFFSET} conv=notrunc
-
-CLEANFILES+= boot1.efi boot1.efifat
+CLEANFILES+= boot1.efi
 
 .include <bsd.prog.mk>
