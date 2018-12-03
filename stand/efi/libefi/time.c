@@ -236,7 +236,7 @@ EFI_GetTimeOfDay(OUT struct timeval *tp, OUT struct timezone *tzp)
 		return (-1);
 
 	/*
-	 *  Convert to UNIX time (ie seconds since the epoch
+	 *  Convert to UNIX time (ie seconds since the epoch)
 	 */
 
 	tp->tv_sec  = from_efi_time(&EfiTime);

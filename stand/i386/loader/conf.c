@@ -93,6 +93,8 @@ struct fs_ops *file_system[] = {
 #ifdef LOADER_TFTP_SUPPORT
     &tftp_fsops,
 #endif
+    // LOADER_HTTP_SUPPORT
+    &http_fsops,
 #ifdef LOADER_GZIP_SUPPORT
     &gzipfs_fsops,
 #endif

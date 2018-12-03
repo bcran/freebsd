@@ -39,6 +39,8 @@ __FBSDID("$FreeBSD$");
 
 #include <efi.h>
 #include <efilib.h>
+#include <efitcp.h>
+#include "efisb.h"
 
 static EFI_GUID sn_guid = EFI_SIMPLE_NETWORK_PROTOCOL;
 
@@ -48,12 +50,14 @@ static void efinet_init(struct iodesc *, void *);
 static int efinet_match(struct netif *, void *);
 static int efinet_probe(struct netif *, void *);
 static ssize_t efinet_put(struct iodesc *, void *, size_t);
+static int efinet_connect(struct iodesc *);
 
 struct netif_driver efinetif = {   
 	.netif_bname = "efinet",
 	.netif_match = efinet_match,
 	.netif_probe = efinet_probe,
 	.netif_init = efinet_init,
+	.netif_connect = efinet_connect,
 	.netif_get = efinet_get,
 	.netif_put = efinet_put,
 	.netif_end = efinet_end,
@@ -120,6 +124,8 @@ efinet_put(struct iodesc *desc, void *pkt, size_t len)
 	EFI_STATUS status;
 	void *buf;
 
+	printf("efinet_put\n");
+
 	net = nif->nif_devdata;
 	if (net == NULL)
 		return (-1);
@@ -153,6 +159,8 @@ efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
 	char *buf, *ptr;
 	ssize_t ret = -1;
 
+	printf("efinet_get\n");
+
 	net = nif->nif_devdata;
 	if (net == NULL)
 		return (ret);
@@ -180,6 +188,273 @@ efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
 	return (ret);
 }
 
+EFI_EVENT mtx;
+
+static void EFIAPI
+connected(void *evt, void *ctx)
+{
+	EFI_EVENT event = evt;
+	EFI_STATUS *s = ctx;
+	printf("Connected status: %d\n", *s);
+
+}
+
+static void EFIAPI
+transmitted(void *evt, void *ctx)
+{
+	EFI_EVENT event = evt;
+	EFI_STATUS *s = ctx;
+	printf("Transmitted status: %d\n", *s);
+	BS->SignalEvent(mtx);
+}
+
+static int
+efinet_connect(struct iodesc *desc)
+{
+	struct netif *nif = desc->io_netif;
+	EFI_TCP4 *tcp4;
+	EFI_SERVICE_BINDING_PROTOCOL *tcp4sb = NULL;
+	EFI_TCP4_IO_TOKEN token;
+	EFI_TCP4_TRANSMIT_DATA data;
+	EFI_TCP4_CONNECTION_TOKEN conntoken;
+	EFI_TCP4_CONFIG_DATA config;
+	EFI_STATUS status;
+	EFI_GUID tcp4sb_guid = EFI_TCP4_SERVICE_BINDING_PROTOCOL;
+	EFI_HANDLE h;
+
+	EFI_GUID tcp4_guid = EFI_TCP4_PROTOCOL;
+	int ret = -1;
+	UINTN n;
+	char *buf = "GET /boot/kernel/kernel HTTP/1.1\r\nUser-Agent: UefiHttpBoot/1.0\r\n\r\n";
+
+	static int first = 1;
+
+	printf("efinet_connect\n");
+
+	if (!first) {}
+
+	if (first)
+	{
+		first = 0;
+
+		efinet_end(nif);
+
+		status = BS->CloseProtocol(nif->nif_driver->netif_ifs[0].dif_private, &sn_guid, IH, NULL);
+		if (status != EFI_SUCCESS) {
+			printf("Failed to Close EFI_SIMPLE_NETWORK protocol\n");
+			return (-1);
+		}
+
+//		status = BS->ConnectController(nif->nif_driver->netif_ifs[0].dif_private, NULL, NULL, FALSE);
+	//	if (status != EFI_SUCCESS)
+//		{
+//			printf("ConnectController failed: %d\n", status);
+//			while (1) {}
+//		}
+
+
+		status = BS->DisconnectController(nif->nif_driver->netif_ifs[0].dif_private, NULL, NULL);
+
+		if (status != EFI_SUCCESS)
+		{
+			printf("DIsconnectController failed: %d\n", status);
+			while (1) {}
+		}
+
+
+		struct netif_dif *dif;
+		struct netif_stats *stats;
+		EFI_DEVICE_PATH *devpath, *node;
+		EFI_SIMPLE_NETWORK *net;
+		EFI_HANDLE *handles, *handles2;
+		EFI_STATUS status;
+		UINTN sz;
+		int err, i, nifs;
+		extern struct devsw netdev;
+
+		printf("reconnecting controller\n");
+
+		sz = 0;
+		handles = NULL;
+		status = BS->LocateHandle(ByProtocol, &tcp4sb_guid, NULL, &sz, NULL);
+		if (status == EFI_BUFFER_TOO_SMALL) {
+			handles = (EFI_HANDLE *)malloc(sz);
+			status = BS->LocateHandle(ByProtocol, &tcp4sb_guid, NULL, &sz,
+			    handles);
+			if (EFI_ERROR(status))
+				free(handles);
+		}
+		if (EFI_ERROR(status)) {
+			printf("failed: %d\n", status);
+			return (-1);
+		}
+		handles2 = (EFI_HANDLE *)malloc(sz);
+		if (handles2 == NULL) {
+			free(handles);
+			printf("reconnecting controller2\n");
+
+			return (ENOMEM);
+		}
+		nifs = 0;
+		for (i = 0; i < sz / sizeof(EFI_HANDLE); i++) {
+			devpath = efi_lookup_devpath(handles[i]);
+			if (devpath == NULL)
+				continue;
+			if ((node = efi_devpath_last_node(devpath)) == NULL)
+				continue;
+
+			if (DevicePathType(node) != MESSAGING_DEVICE_PATH ||
+			    DevicePathSubType(node) != MSG_MAC_ADDR_DP)
+				continue;
+
+			/*
+			* Open the network device in exclusive mode. Without this
+			* we will be racing with the UEFI network stack. It will
+			* pull packets off the network leading to lost packets.
+			*/
+	//		status = BS->OpenProtocol(handles[i], &sn_guid, (void **)&net,
+	//		   IH, NULL, EFI_OPEN_PROTOCOL_EXCLUSIVE);
+	//		if (status != EFI_SUCCESS) {
+	//			printf("Unable to open network interface %d for "
+	//					"exclusive access: %lu\n", i,
+	//					EFI_ERROR_CODE(status));
+	//	   }
+
+
+
+printf("Calling connectcontroller\n");
+
+			status = BS->ConnectController(handles[i], NULL, NULL, TRUE);
+			if (status != EFI_SUCCESS)
+			{
+				printf("ConnectController failed: %d\n", status);
+				while (1) {}
+			}
+		}
+
+		printf("reconnecting controller3\n");
+
+
+		status = BS->CreateEvent(0, TPL_APPLICATION, NULL, NULL, &mtx);
+		if (status != EFI_SUCCESS)
+			printf("Failed to create BLAH event\n");
+
+		first = 0;
+
+		printf("done in first\n");
+	}
+
+	printf("locating protocol SB\n");
+
+	status = BS->LocateProtocol(&tcp4sb_guid, NULL, (VOID**)&tcp4sb);
+	if (status != EFI_SUCCESS)
+	{
+		printf("failed to locate TCP4SB protocol: %d\n", status);
+		while (1) {}
+		return (-1);
+	}
+
+	status = tcp4sb->CreateChild(tcp4sb, &h);
+
+	if (status != EFI_SUCCESS)
+	{
+		printf("Failed to CreateChild: %d\n", status);
+		return (-1);
+	}
+
+	printf("Child Handle = %d\n", h);
+
+	status = BS->OpenProtocol(h, &tcp4_guid, (VOID**)&tcp4, IH, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+	if (status != EFI_SUCCESS)
+	{
+		printf("Failed to open TCP4 protocol: %d\n", status);
+		return (-1);
+	}
+
+	memset(&config, 0, sizeof(config));
+	config.ControlOption = NULL;
+	config.AccessPoint.UseDefaultAddress = FALSE;
+	config.AccessPoint.StationPort = 0;
+	config.AccessPoint.SubnetMask.Addr[0] = 255;
+	config.AccessPoint.SubnetMask.Addr[1] = 255;
+	config.AccessPoint.SubnetMask.Addr[2] = 255;
+	config.AccessPoint.SubnetMask.Addr[3] = 0;
+
+	config.AccessPoint.StationAddress.Addr[0] = 192;
+	config.AccessPoint.StationAddress.Addr[1] = 168;
+	config.AccessPoint.StationAddress.Addr[2] = 0;
+	config.AccessPoint.StationAddress.Addr[3] = 5;
+
+//	memcpy(&config.AccessPoint.StationAddress.Addr, &rootip.s_addr, sizeof(rootip.s_addr));
+	memcpy(&config.AccessPoint.RemoteAddress.Addr, &desc->destip, sizeof(desc->destip));
+	config.AccessPoint.RemotePort = 80;
+	config.AccessPoint.ActiveFlag = TRUE;
+
+//	status = tcp4->Configure(tcp4, NULL);
+//	if (status != EFI_SUCCESS)
+//	{
+//		printf("tcp4->Configure(NULL) failed: %d\n", status);
+//	}
+
+	printf("StationAddress = %d.%d.%d.%d\n", config.AccessPoint.StationAddress.Addr[0],config.AccessPoint.StationAddress.Addr[1],config.AccessPoint.StationAddress.Addr[2],config.AccessPoint.StationAddress.Addr[3]);
+	printf("RemoteAddress = %d.%d.%d.%d\n", config.AccessPoint.RemoteAddress.Addr[0],config.AccessPoint.RemoteAddress.Addr[1],config.AccessPoint.RemoteAddress.Addr[2],config.AccessPoint.RemoteAddress.Addr[3]);
+
+	printf("SubnetMask = %d.%d.%d.%d\n", config.AccessPoint.SubnetMask.Addr[0],config.AccessPoint.SubnetMask.Addr[1],config.AccessPoint.SubnetMask.Addr[2],config.AccessPoint.SubnetMask.Addr[3]);
+	printf("RemotePort = %d\n", config.AccessPoint.RemotePort);
+
+	status = tcp4->Configure(tcp4, &config);
+	if (status != EFI_SUCCESS)
+	{
+		printf("tcp4->Configure failed: %d\n", status);
+	}
+
+	status = BS->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK, &connected, &conntoken.CompletionToken.Status, &conntoken.CompletionToken.Event);
+
+	if (status != EFI_SUCCESS)
+		printf("Failed to CreateEvent: %d\n", status);
+
+	status = tcp4->Connect(tcp4, &conntoken);
+
+	if (status != EFI_SUCCESS)
+		printf("Faield to tcp4->Connect: %d\n", status);
+
+
+
+	data.Push = FALSE;
+	data.Urgent = FALSE;
+	data.DataLength = strlen(buf) + 1;
+	data.FragmentCount = 1;
+	data.FragmentTable[0].FragmentLength = strlen(buf) + 1;
+	data.FragmentTable[0].FragmentBuffer = buf;
+
+	token.Packet.TxData = &data;
+	status = BS->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK, &transmitted, &token.CompletionToken.Status, &token.CompletionToken.Event);
+
+	if (status != EFI_SUCCESS)
+		printf("Faield to CreateEvent: %d\n", status);
+
+	status = tcp4->Transmit(tcp4, &token);
+	if (status != EFI_SUCCESS)
+	{
+		printf("Transmit failed: %d\n", status);
+	}
+
+	BS->WaitForEvent(1, &mtx, &n);
+	
+	
+	EFI_TCP4_CLOSE_TOKEN close;
+	close.AbortOnClose = FALSE;
+	BS->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK, &connected, &close.CompletionToken.Status, &close.CompletionToken.Event);
+	
+	tcp4->Close(tcp4, &close);
+
+	while (1) {}
+
+
+
+	return (0);
+}
+
 static void
 efinet_init(struct iodesc *desc, void *machdep_hint)
 {
@@ -195,7 +470,9 @@ efinet_init(struct iodesc *desc, void *machdep_hint)
 	}
 
 	h = nif->nif_driver->netif_ifs[nif->nif_unit].dif_private;
-	status = BS->HandleProtocol(h, &sn_guid, (VOID **)&nif->nif_devdata);
+//	status = BS->HandleProtocol(h, &sn_guid, (VOID **)&nif->nif_devdata);
+
+	status = BS->OpenProtocol(h, &sn_guid, (VOID **)&nif->nif_devdata, IH, NULL, EFI_OPEN_PROTOCOL_EXCLUSIVE);
 	if (status != EFI_SUCCESS) {
 		printf("net%d: cannot fetch interface data (status=%lu)\n",
 		    nif->nif_unit, EFI_ERROR_CODE(status));
@@ -237,6 +514,7 @@ efinet_init(struct iodesc *desc, void *machdep_hint)
 	desc->xid = 1;
 }
 
+
 static void
 efinet_end(struct netif *nif)
 {
@@ -276,6 +554,8 @@ efinet_dev_init()
 	int err, i, nifs;
 	extern struct devsw netdev;
 
+	printf("efinet_dev_init\n");
+
 	sz = 0;
 	handles = NULL;
 	status = BS->LocateHandle(ByProtocol, &sn_guid, NULL, &sz, NULL);
@@ -306,17 +586,17 @@ efinet_dev_init()
 			continue;
 
 		/*
-		 * Open the network device in exclusive mode. Without this
-		 * we will be racing with the UEFI network stack. It will
-		 * pull packets off the network leading to lost packets.
-		 */
+		* Open the network device in exclusive mode. Without this
+		* we will be racing with the UEFI network stack. It will
+		* pull packets off the network leading to lost packets.
+		*/
 		status = BS->OpenProtocol(handles[i], &sn_guid, (void **)&net,
-		    IH, NULL, EFI_OPEN_PROTOCOL_EXCLUSIVE);
+		   IH, NULL, EFI_OPEN_PROTOCOL_EXCLUSIVE);
 		if (status != EFI_SUCCESS) {
 			printf("Unable to open network interface %d for "
-			    "exclusive access: %lu\n", i,
-			    EFI_ERROR_CODE(status));
-		}
+					"exclusive access: %lu\n", i,
+					EFI_ERROR_CODE(status));
+	   }
 
 		handles2[nifs] = handles[i];
 		nifs++;

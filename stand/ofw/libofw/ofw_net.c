@@ -64,6 +64,7 @@ struct netif_driver ofwnet = {
 	ofwn_match,		/* netif_match */
 	ofwn_probe,		/* netif_probe */
 	ofwn_init,		/* netif_init */
+	NULL			/* netif_connect */
 	ofwn_get,		/* netif_get */
 	ofwn_put,		/* netif_put */
 	ofwn_end,		/* netif_end */

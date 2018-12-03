@@ -47,9 +47,13 @@ __FBSDID("$FreeBSD$");
 #include "net.h"
 #include "netif.h"
 
+#ifndef NETIF_DEBUG
+#define NETIF_DEBUG 1
+#endif
+
 struct iodesc sockets[SOPEN_MAX];
 #ifdef NETIF_DEBUG
-int netif_debug = 0;
+int netif_debug = 1;
 #endif
 
 /*
@@ -205,6 +209,30 @@ netif_detach(struct netif *nif)
 		    nif->nif_unit);
 #endif
 	drv->netif_end(nif);
+}
+
+int
+netif_connect(struct iodesc *desc)
+{
+	struct netif_driver *drv = desc->io_netif->nif_driver;
+	ssize_t rv;
+
+#ifdef NETIF_DEBUG
+	if (netif_debug)
+		printf("netif_connect\n");
+#endif
+
+	if (drv->netif_connect == NULL)
+		panic("no netif_connect support");
+
+	rv = drv->netif_connect(desc);
+
+#ifdef NETIF_DEBUG
+	if (netif_debug)
+		printf("netif_connect returning %zd\n", rv);
+#endif
+
+	return (rv);
 }
 
 ssize_t

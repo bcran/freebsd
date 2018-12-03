@@ -108,6 +108,10 @@ struct netif_driver *netif_drivers[] = {
 	NULL
 };
 
+struct httpif_driver *httpif_drivers[] = {
+	NULL
+};
+
 struct devsw pxedisk = {
 	.dv_name = "net",
 	.dv_type = DEVT_NET,

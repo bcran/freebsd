@@ -476,6 +476,18 @@ typedef struct _EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL {
 	EFI_DEVICE_PATH_FROM_TEXT_PATH ConvertTextToDevicePath;
 } EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL;
 
+///
+/// Uniform Resource Identifiers (URI) Device Path SubType
+///
+#define MSG_URI_DP                0x18
+typedef struct {
+  EFI_DEVICE_PATH                 Header;
+  ///
+  /// Instance of the URI pursuant to RFC 3986.
+  ///
+  CHAR8                           Uri[];
+} URI_DEVICE_PATH;
+
 #pragma pack()
 
 #endif

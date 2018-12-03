@@ -320,7 +320,7 @@ match_boot_info(char *boot_info, size_t bisz)
 	CHAR16 *text;
 
 	/*
-	 * FreeBSD encodes it's boot loading path into the boot loader
+	 * FreeBSD encodes its boot loading path into the boot loader
 	 * BootXXXX variable. We look for the last one in the path
 	 * and use that to load the kernel. However, if we only fine
 	 * one DEVICE_PATH, then there's nothing specific and we should
@@ -339,6 +339,7 @@ match_boot_info(char *boot_info, size_t bisz)
 	 * load that. If we can, we return BOOT_INFO_OK. Otherwise we
 	 * return BAD_CHOICE for the caller to sort out.
 	 */
+
 	if (bisz < sizeof(attr) + sizeof(fplen) + sizeof(CHAR16))
 		return NOT_SPECIFIC;
 	walker = boot_info;
@@ -355,6 +356,8 @@ match_boot_info(char *boot_info, size_t bisz)
 	if ((char *)edp > ep)
 		return NOT_SPECIFIC;
 	while (dp < edp && SIZE(dp, edp) > sizeof(EFI_DEVICE_PATH)) {
+		printf("DevicePath Type: %d\n", DevicePathType(dp));
+		printf("DevicePathSubType: %d\n", DevicePathSubType(dp));
 		text = efi_devpath_name(dp);
 		if (text != NULL) {
 			printf("   BootInfo Path: %S\n", text);
@@ -574,6 +577,7 @@ find_currdev(bool do_bootmgr, bool is_last,
 		}
 	}
 
+
 	/*
 	 * Try the device handle from our loaded image first.  If that
 	 * fails, use the device path from the loaded image and see if
@@ -582,6 +586,7 @@ find_currdev(bool do_bootmgr, bool is_last,
 	 */
 	if (efi_handle_lookup(boot_img->DeviceHandle, &dev, &unit, &extra) == 0) {
 		set_currdev_devsw(dev, unit);
+		
 		if (sanity_check_currdev())
 			return (0);
 	}

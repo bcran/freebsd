@@ -69,7 +69,7 @@ __FBSDID("$FreeBSD$");
 #include "bootstrap.h"
 
 #ifdef	NETIF_DEBUG
-int debug = 0;
+int debug = 1;
 #endif
 
 static char *netdev_name;
@@ -103,6 +103,7 @@ static struct uri_scheme {
 } uri_schemes[] = {
 	{ "tftp:/", NET_TFTP },
 	{ "nfs:/", NET_NFS },
+	{ "http:/", NET_HTTP }
 };
 
 static int
@@ -131,6 +132,8 @@ net_open(struct open_file *f, ...)
 	va_end(args);
 
 	devname = dev->d_dev->dv_name;
+	printf("** net_open ***\n");
+
 	/* Before opening another interface, close the previous one first. */
 	if (netdev_sock >= 0 && strcmp(devname, netdev_name) != 0)
 		net_cleanup();
@@ -150,12 +153,15 @@ net_open(struct open_file *f, ...)
 				printf("net_open: netif_open() succeeded\n");
 #endif
 		}
+
 		/*
 		 * If network params were not set by netif_open(), try to get
 		 * them via bootp, rarp, etc.
 		 */
+
 		if (rootip.s_addr == 0) {
 			/* Get root IP address, and path, etc. */
+			printf("Get root IP address, and path, etc.\n");
 			error = net_getparams(netdev_sock);
 			if (error) {
 				/* getparams makes its own noise */
@@ -165,6 +171,7 @@ net_open(struct open_file *f, ...)
 				return (error);
 			}
 		}
+
 		/*
 		 * Set the variables required by the kernel's nfs_diskless
 		 * mechanism.  This is the minimum set of variables required to
@@ -393,6 +400,8 @@ net_parse_rootpath(void)
 
 	netproto = NET_NONE;
 
+	printf("net_prase_rootpath\n");
+
 	for (i = 0; i < nitems(uri_schemes); i++) {
 		if (strncmp(rootpath, uri_schemes[i].scheme,
 		    strlen(uri_schemes[i].scheme)) != 0)
@@ -401,7 +410,13 @@ net_parse_rootpath(void)
 		netproto = uri_schemes[i].proto;
 		break;
 	}
+
 	ptr = rootpath;
+
+	printf("net_proto: %d, rootpath: %s\n", netproto, rootpath);
+	if (netproto != NET_NONE)
+		printf("scheme: %s\n", uri_schemes[i].scheme);
+
 	/* Fallback for compatibility mode */
 	if (netproto == NET_NONE) {
 		netproto = NET_NFS;
