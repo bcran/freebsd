@@ -1,0 +1,76 @@
+\"
+.\" Copyright (c) 2019 Rebecca Cran <bcran@freebsd.org>.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.\" $FreeBSD$
+.\"
+.Dd March 17, 2019
+.Dt EFI-UPDATE-LOADER 8
+.Os
+.Sh NAME
+.Nm efi-update-loader
+.Nd Update an EFI System Partition with a FreeBSD loader
+.Sh SYNOPSIS
+.Nm
+.Op Fl d Ar device
+.Op Fl l Ar loader
+.Op Fl v
+.Sh DESCRIPTION
+This program updates an existing FreeBSD
+.Dq Unified Extensible Firmware Interface
+.Pq UEFI
+.Dq EFI System Partition
+.Pq ESP
+with a new FreeBSD
+.Pa loader.efi
+file.
+
+The ESP is a FAT12, FAT16 or FAT32 filesystem that is used by the UEFI system
+firmware to load and run OS boot loaders that are compiled as
+.Dq Portable Executable
+.Pq PE
+binaries. The UEFI Boot Manager, which can be configured with the
+.Xr efibootmgr 8
+utility, contains entries which point to the location of the boot loader
+within the ESP.
+.Pp
+The following options are available:
+.Bl -tag -width indent
+.It Fl d Ar device
+Specify the device to use as the ESP. If not specified, any ESPs associated
+with the root filesystem are used.
+.It Fl l Ar loader
+Specify the file to install as the FreeBSD boot loader. If not specified,
+.Pa /boot/loader.efi
+is used. This option may be used to install other loaders such as
+.Pa /boot/loader_4th.efi .
+.It Fl v
+Enable verbose output.
+.Sh SEE ALSO
+.Xr efibootmgr 8 ,
+.Xr efivar 8
+.Sh HISTORY
+The
+.Nm
+utility first appeared in
+.Fx 13.0
