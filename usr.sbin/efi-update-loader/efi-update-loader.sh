@@ -43,8 +43,8 @@ get_uefi_bootname() {
 		i386)	echo BOOTia32 ;;
 		arm)	echo BOOTarm ;;
 		*)
-				echo "machine type $(uname -m) doesn't support UEFI"
-				exit 1
+			echo "machine type $(uname -m) doesn't support UEFI"
+			exit 1
 		;;
 	esac
 }
@@ -55,11 +55,11 @@ clean_up() {
 
 	if [ -z "${mntpt}" ]; then exit 1; fi
 
-	if mount | grep -q "${mntpt}" ; then
+	if [ -z "${esppath}" ] && mount | grep -q "${mntpt}" ; then
 		umount "${mntpt}"
 	fi
 
-	if [ -d "${mntpt}" ]; then rmdir "${mntpt}"; fi
+	if [ -z "${esppath}" ] && [ -d "${mntpt}" ]; then rmdir "${mntpt}"; fi
 
 	echo "Something went wrong. The ESP(s) used were: ${esps}"
 	echo "Any backups of the previous loader.efi and $(get_uefi_bootname).efi are in /tmp/espback.*"
@@ -156,10 +156,45 @@ get_freespace_on_esp() {
 
 
 copyloader() {
-	mntpt=$(mktemp -d /tmp/esp.XXXXXX)
 	espdev=$1
 
-	mount -t msdosfs "${espdev}" "${mntpt}"
+	if [ -n "${esppath}" ]; then
+		mntpt="${esppath}"
+	else
+		mntpt=$(mktemp -d /tmp/esp.XXXXXX)
+	fi
+
+	if [ -z "${esppath}" ] && ! mount -t msdosfs "${espdev}" "${mntpt}" 2> /dev/null; then
+		# See if it's already mounted
+		m=$(mount)
+		d=$(echo "${espdev}" | cut -d '/' -f 3)
+		l=$(geom label status -s | grep "${d}" | awk '{print $1}')
+		if echo "${m}" | grep -q "${espdev}" || echo "${m}" | grep -q "${l}"; then
+			rmdir "${mntpt}"
+			mntpt=$(echo "${m}" | grep "${espdev}" | awk '{print $3}')
+			if [ -z "${mntpt}" ]; then
+				mntpt=$(echo "${m}" | grep "${l}" | awk '{print $3}')
+			fi
+			esppath="${mntpt}"
+			eval vout "Using ESP mounted at ${mntpt}"
+		else
+			echo "Failed to mount ESP device ${espdev}"
+			rmdir "${mntpt}"
+			trap 1 2 15 EXIT
+			exit 1
+		fi
+	fi
+
+	if [ ! -d "${mntpt}/EFI" ]; then
+		if [ -z "${esppath}" ]; then
+			echo "Error: The device ${espdev} does not appear to be an ESP."
+			exit 1
+		else
+			echo "Error: The path ${esppath} does not appear to be an ESP."
+			trap 1 2 15 EXIT
+			exit 1
+		fi
+	fi
 
 	ldrsize=$(stat -f %z "${loader}")
 	ldrsize=$((ldrsize / 1024))
@@ -236,8 +271,11 @@ copyloader() {
 		fi
 	fi
 
-	umount "${mntpt}"
-	rmdir "${mntpt}"
+	if [ -z "${esppath}" ]; then
+		umount "${mntpt}"
+		rmdir "${mntpt}"
+	fi
+
 	if [ -f "${backdir}/loader.efi" ]; then rm "${backdir}/loader.efi"; fi
 	if [ -f "${backdir}/${efibootname}.efi" ]; then rm "${backdir}/${efibootname}.efi"; fi
 	if [ -d "${backdir}" ]; then rmdir "${backdir}"; fi
@@ -245,8 +283,9 @@ copyloader() {
 
 
 usage() {
-	printf 'usage: %s [-d device] [-l loader] [-v]\n' "${progname}"
+	printf 'usage: %s [-d device] [-p path] [-l loader] [-v]\n' "${progname}"
 	printf '\t-d device\tEFI System Partition (ESP) device name\n'
+	printf '\t-p path\tPath to a mounted EFI System Partition (ESP)\n'
 	printf '\t-l loader\tFreeBSD EFI loader (default is /boot/loader.efi)\n'
 	printf '\t-v \t\tEnable verbose output\n'
 	exit 0
@@ -256,10 +295,13 @@ usage() {
 progname=$0
 loader=/boot/loader.efi
 
-while getopts "vd:l:h" opt; do
+while getopts "vd:p:l:h" opt; do
 	case "$opt" in
 		d)
 			esps=${OPTARG}
+			;;
+		p)
+			esppath=${OPTARG}
 			;;
 		l)
 			loader=${OPTARG}
@@ -277,7 +319,7 @@ trap clean_up 1 2 15 EXIT
 
 # If the user didn't specify a device to update, look for any ESPs on the same
 # disk(s) as the root filesystem.
-if [ -z "${esps}" ]; then
+if [ -z "${esps}" ] && [ -z "${esppath}" ]; then
 
 	eval detect_esps
 
@@ -287,13 +329,8 @@ if [ -z "${esps}" ]; then
 	fi
 fi
 
-if [ -z "${esps}" ]; then
-	eval usage	
-	exit 1
-fi
-
-for esp in ${esps}; do
-	eval copyloader "${esp}" "${loader}"
+for esp in ${esps} ${esppath}; do
+	eval copyloader "${esp}"
 done
 
 trap 1 2 15 EXIT

@@ -33,6 +33,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl d Ar device
+.Op Fl p Ar path
 .Op Fl l Ar loader
 .Op Fl v
 .Sh DESCRIPTION
@@ -59,6 +60,8 @@ The following options are available:
 .It Fl d Ar device
 Specify the device to use as the ESP. If not specified, any ESPs associated
 with the root filesystem are used.
+.It Fl p Ar path
+Specify the path to a mounted ESP.
 .It Fl l Ar loader
 Specify the file to install as the FreeBSD boot loader. If not specified,
 .Pa /boot/loader.efi

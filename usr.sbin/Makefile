@@ -126,7 +126,7 @@ SUBDIR.${MK_BSDINSTALL}+=	bsdinstall
 SUBDIR.${MK_BSNMP}+=	bsnmpd
 SUBDIR.${MK_CXGBETOOL}+=	cxgbetool
 SUBDIR.${MK_DIALOG}+=	bsdconfig
-SUBDIR.${MK_EFI}+=	efivar efidp efibootmgr
+SUBDIR.${MK_EFI}+=	efivar efidp efibootmgr efi-update-loader
 .if ${MK_OPENSSL} != "no"
 SUBDIR.${MK_EFI}+=	uefisign
 .endif
