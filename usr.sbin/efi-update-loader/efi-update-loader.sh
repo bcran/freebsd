@@ -114,6 +114,10 @@ detect_esps() {
 				break
 			fi
 		done
+
+		if [ -z "${labels}" ]; then
+			labels="${label}"
+		fi
 	fi
 
 	for lbl in ${labels}; do
@@ -139,8 +143,8 @@ detect_esps() {
 		fi
 	done
 
-	if [ -n "${verbose}" ]; then
-		echo -n "Found ESP(S): "
+	if [ -n "${verbose}" ] && [ -n "${esps}" ]; then
+		echo -n "Found ESP(s): "
 		for esp in ${esps}; do
 			echo -n "${esp} "
 		done
