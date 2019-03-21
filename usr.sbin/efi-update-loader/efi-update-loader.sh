@@ -192,7 +192,8 @@ copyloader() {
 			if [ -z "${mntpt}" ]; then
 				mntpt=$(echo "${m}" | grep "${l}" | awk '{print $3}')
 			fi
-			esppath="${mntpt}"
+			# Prevents the cleanup code from unmounting the ESP and removing the mountpoint
+			espdev=
 			eval vout "Using ESP mounted at ${mntpt}"
 
 		else
@@ -208,7 +209,7 @@ copyloader() {
 			echo "Error: The device ${espdev} does not appear to be an ESP."
 			exit 1
 		else
-			echo "Error: The path ${esppath} does not appear to be an ESP."
+			echo "Error: The path ${mntpt} does not appear to be an ESP."
 			trap 1 2 15 EXIT
 			exit 1
 		fi
