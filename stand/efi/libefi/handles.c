@@ -84,7 +84,10 @@ efi_handle_lookup(EFI_HANDLE h, struct devsw **dev, int *unit, uint64_t *extra)
 {
 	int idx;
 
+	printf("nentries: %d\n", nentries);
+
 	for (idx = 0; idx < nentries; idx++) {
+		printf("entry[%d].handle = %p\n", idx, entry[idx].handle);
 		if (entry[idx].handle != h && entry[idx].alias != h)
 			continue;
 		if (dev != NULL)

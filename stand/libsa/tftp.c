@@ -438,6 +438,9 @@ tftp_open(const char *path, struct open_file *f)
 	size_t		pathsize;
 	const char	*extraslash;
 
+	printf("tftp_open\n");
+	while (1) {;}
+
 	if (netproto != NET_TFTP)
 		return (EINVAL);
 

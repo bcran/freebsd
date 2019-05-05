@@ -92,6 +92,7 @@ http_open(const char *path, struct open_file *f)
 
 	printf("http_open %s\n", path);
 
+
 	httpfile = calloc(1, sizeof(*httpfile));
 	if (httpfile == NULL)
 		return (ENOMEM);

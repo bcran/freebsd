@@ -127,6 +127,8 @@ net_open(struct open_file *f, ...)
 	const char *devname;	/* Device part of file name (or NULL). */
 	int error = 0;
 
+	printf("net_open ******\n");
+
 	va_start(args, f);
 	dev = va_arg(args, struct devdesc *);
 	va_end(args);
@@ -140,6 +142,7 @@ net_open(struct open_file *f, ...)
 	if (netdev_opens == 0) {
 		/* Find network interface. */
 		if (netdev_sock < 0) {
+			printf("calling netif_open\n");
 			netdev_sock = netif_open(dev);
 			if (netdev_sock < 0) {
 				printf("net_open: netif_open() failed\n");
@@ -151,6 +154,8 @@ net_open(struct open_file *f, ...)
 				printf("net_open: netif_open() succeeded\n");
 #endif
 		}
+
+		printf("ONE\n");
 		/*
 		 * If network params were not set by netif_open(), try to get
 		 * them via bootp, rarp, etc.
@@ -259,6 +264,8 @@ net_getparams(int sock)
 {
 	char buf[MAXHOSTNAMELEN];
 	n_long rootaddr, smask;
+
+	printf("net_getparams\n");
 
 #ifdef	SUPPORT_BOOTP
 	/*

@@ -104,6 +104,8 @@ efinet_match(struct netif *nif, void *machdep_hint)
 {
 	struct devdesc *dev = machdep_hint;
 
+	printf("efinet_match\n");
+
 	if (dev->d_unit == nif->nif_unit)
 		return (1);
 	return(0);
@@ -159,6 +161,8 @@ efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
 	char *buf, *ptr;
 	ssize_t ret = -1;
 
+	printf("efinet_get\n");
+
 	net = nif->nif_devdata;
 	if (net == NULL)
 		return (ret);
@@ -187,13 +191,15 @@ efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
 }
 
 EFI_EVENT mtx;
+EFI_TCP4 *tcp4;
 
 static void EFIAPI
 connected(void *evt, void *ctx)
 {
-	EFI_EVENT event = evt;
+//	EFI_EVENT event = evt;
 	EFI_STATUS *s = ctx;
 	printf("Connected status: %d\n", *s);
+	BS->SignalEvent(mtx);
 
 }
 
@@ -210,7 +216,6 @@ static int
 efinet_connect(struct iodesc *desc)
 {
 	struct netif *nif = desc->io_netif;
-	EFI_TCP4 *tcp4;
 	EFI_SERVICE_BINDING_PROTOCOL *tcp4sb = NULL;
 	EFI_TCP4_IO_TOKEN token;
 	EFI_TCP4_TRANSMIT_DATA data;
@@ -225,199 +230,36 @@ efinet_connect(struct iodesc *desc)
 	UINTN n;
 	char *buf = "GET /boot/kernel/kernel HTTP/1.1\r\nUser-Agent: UefiHttpBoot/1.0\r\n\r\n";
 
-	static int first = 1;
-
-	printf("efinet_connect\n");
-
-	if (!first) {}
-
-	if (first)
-	{
-		first = 0;
-
-		efinet_end(nif);
-
-		status = BS->CloseProtocol(nif->nif_driver->netif_ifs[0].dif_private, &sn_guid, IH, NULL);
-		if (status != EFI_SUCCESS) {
-			printf("Failed to Close EFI_SIMPLE_NETWORK protocol\n");
-			return (-1);
-		}
-
-//		status = BS->ConnectController(nif->nif_driver->netif_ifs[0].dif_private, NULL, NULL, FALSE);
-	//	if (status != EFI_SUCCESS)
-//		{
-//			printf("ConnectController failed: %d\n", status);
-//			while (1) {}
-//		}
-
-
-		status = BS->DisconnectController(nif->nif_driver->netif_ifs[0].dif_private, NULL, NULL);
-
-		if (status != EFI_SUCCESS)
-		{
-			printf("DIsconnectController failed: %d\n", status);
-			while (1) {}
-		}
-
-
-		struct netif_dif *dif;
-		struct netif_stats *stats;
-		EFI_DEVICE_PATH *devpath, *node;
-		EFI_SIMPLE_NETWORK *net;
-		EFI_HANDLE *handles, *handles2;
-		EFI_STATUS status;
-		UINTN sz;
-		int err, i, nifs;
-		extern struct devsw netdev;
-
-		printf("reconnecting controller\n");
-
-		sz = 0;
-		handles = NULL;
-		status = BS->LocateHandle(ByProtocol, &tcp4sb_guid, NULL, &sz, NULL);
-		if (status == EFI_BUFFER_TOO_SMALL) {
-			handles = (EFI_HANDLE *)malloc(sz);
-			status = BS->LocateHandle(ByProtocol, &tcp4sb_guid, NULL, &sz,
-			    handles);
-			if (EFI_ERROR(status))
-				free(handles);
-		}
-		if (EFI_ERROR(status)) {
-			printf("failed: %d\n", status);
-			return (-1);
-		}
-		handles2 = (EFI_HANDLE *)malloc(sz);
-		if (handles2 == NULL) {
-			free(handles);
-			printf("reconnecting controller2\n");
-
-			return (ENOMEM);
-		}
-		nifs = 0;
-		for (i = 0; i < sz / sizeof(EFI_HANDLE); i++) {
-			devpath = efi_lookup_devpath(handles[i]);
-			if (devpath == NULL)
-				continue;
-			if ((node = efi_devpath_last_node(devpath)) == NULL)
-				continue;
-
-			if (DevicePathType(node) != MESSAGING_DEVICE_PATH ||
-			    DevicePathSubType(node) != MSG_MAC_ADDR_DP)
-				continue;
-
-			/*
-			* Open the network device in exclusive mode. Without this
-			* we will be racing with the UEFI network stack. It will
-			* pull packets off the network leading to lost packets.
-			*/
-	//		status = BS->OpenProtocol(handles[i], &sn_guid, (void **)&net,
-	//		   IH, NULL, EFI_OPEN_PROTOCOL_EXCLUSIVE);
-	//		if (status != EFI_SUCCESS) {
-	//			printf("Unable to open network interface %d for "
-	//					"exclusive access: %lu\n", i,
-	//					EFI_ERROR_CODE(status));
-	//	   }
-
-
-
-printf("Calling connectcontroller\n");
-
-			status = BS->ConnectController(handles[i], NULL, NULL, TRUE);
-			if (status != EFI_SUCCESS)
-			{
-				printf("ConnectController failed: %d\n", status);
-				while (1) {}
-			}
-		}
-
-		printf("reconnecting controller3\n");
-
-
-		status = BS->CreateEvent(0, TPL_APPLICATION, NULL, NULL, &mtx);
-		if (status != EFI_SUCCESS)
-			printf("Failed to create BLAH event\n");
-
-		first = 0;
-
-		printf("done in first\n");
-	}
-
-	printf("locating protocol SB\n");
-
-	status = BS->LocateProtocol(&tcp4sb_guid, NULL, (VOID**)&tcp4sb);
-	if (status != EFI_SUCCESS)
-	{
-		printf("failed to locate TCP4SB protocol: %d\n", status);
-		while (1) {}
-		return (-1);
-	}
-
-	status = tcp4sb->CreateChild(tcp4sb, &h);
-
-	if (status != EFI_SUCCESS)
-	{
-		printf("Failed to CreateChild: %d\n", status);
-		return (-1);
-	}
-
-	printf("Child Handle = %d\n", h);
-
-	status = BS->OpenProtocol(h, &tcp4_guid, (VOID**)&tcp4, IH, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
-	if (status != EFI_SUCCESS)
-	{
-		printf("Failed to open TCP4 protocol: %d\n", status);
-		return (-1);
-	}
-
-	memset(&config, 0, sizeof(config));
-	config.ControlOption = NULL;
-	config.AccessPoint.UseDefaultAddress = FALSE;
-	config.AccessPoint.StationPort = 0;
-	config.AccessPoint.SubnetMask.Addr[0] = 255;
-	config.AccessPoint.SubnetMask.Addr[1] = 255;
-	config.AccessPoint.SubnetMask.Addr[2] = 255;
-	config.AccessPoint.SubnetMask.Addr[3] = 0;
-
-	config.AccessPoint.StationAddress.Addr[0] = 192;
-	config.AccessPoint.StationAddress.Addr[1] = 168;
-	config.AccessPoint.StationAddress.Addr[2] = 0;
-	config.AccessPoint.StationAddress.Addr[3] = 5;
-
-//	memcpy(&config.AccessPoint.StationAddress.Addr, &rootip.s_addr, sizeof(rootip.s_addr));
-	memcpy(&config.AccessPoint.RemoteAddress.Addr, &desc->destip, sizeof(desc->destip));
-	config.AccessPoint.RemotePort = 80;
-	config.AccessPoint.ActiveFlag = TRUE;
-
-//	status = tcp4->Configure(tcp4, NULL);
-//	if (status != EFI_SUCCESS)
-//	{
-//		printf("tcp4->Configure(NULL) failed: %d\n", status);
-//	}
-
-	printf("StationAddress = %d.%d.%d.%d\n", config.AccessPoint.StationAddress.Addr[0],config.AccessPoint.StationAddress.Addr[1],config.AccessPoint.StationAddress.Addr[2],config.AccessPoint.StationAddress.Addr[3]);
-	printf("RemoteAddress = %d.%d.%d.%d\n", config.AccessPoint.RemoteAddress.Addr[0],config.AccessPoint.RemoteAddress.Addr[1],config.AccessPoint.RemoteAddress.Addr[2],config.AccessPoint.RemoteAddress.Addr[3]);
-
-	printf("SubnetMask = %d.%d.%d.%d\n", config.AccessPoint.SubnetMask.Addr[0],config.AccessPoint.SubnetMask.Addr[1],config.AccessPoint.SubnetMask.Addr[2],config.AccessPoint.SubnetMask.Addr[3]);
-	printf("RemotePort = %d\n", config.AccessPoint.RemotePort);
-
-	status = tcp4->Configure(tcp4, &config);
-	if (status != EFI_SUCCESS)
-	{
-		printf("tcp4->Configure failed: %d\n", status);
-	}
+	printf("efinet_connect, tcp4 = %p\n", tcp4);
 
 	status = BS->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK, &connected, &conntoken.CompletionToken.Status, &conntoken.CompletionToken.Event);
 
-	if (status != EFI_SUCCESS)
+	if (status != 0) {
 		printf("Failed to CreateEvent: %d\n", status);
+	}
+
+	status = BS->CreateEvent(0, TPL_NOTIFY, NULL, NULL, &mtx);
+	if (EFI_ERROR(status))
+	{
+		printf("Failed to create mtx event: %d\n", status);
+	}
+
 
 	status = tcp4->Connect(tcp4, &conntoken);
 
-	if (status != EFI_SUCCESS)
-		printf("Faield to tcp4->Connect: %d\n", status);
+	if (EFI_ERROR(status)) {
+		printf("Failed to connect: %d\n", status);
+	}
 
 
+	status = BS->WaitForEvent(1, &mtx, &n);
+	if (EFI_ERROR(status))
+	{
+		printf("Faield to WaitForEvent: %d\n", status);
+	}
+//
 
+#if 0
 	data.Push = FALSE;
 	data.Urgent = FALSE;
 	data.DataLength = strlen(buf) + 1;
@@ -443,14 +285,86 @@ printf("Calling connectcontroller\n");
 	EFI_TCP4_CLOSE_TOKEN close;
 	close.AbortOnClose = FALSE;
 	BS->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK, &connected, &close.CompletionToken.Status, &close.CompletionToken.Event);
-	
-	tcp4->Close(tcp4, &close);
-
-	while (1) {}
-
-
-
+#endif	
 	return (0);
+}
+
+extern EFI_GUID devid;
+
+static void
+efinet_init_tcp(struct iodesc *desc, void *machdep_hint)
+{
+
+	EFI_DEVICE_PATH *imgpath;
+	EFI_DEVICE_PATH *dp;
+	EFI_STATUS rv;
+	URI_DEVICE_PATH *uri;
+
+	rv = BS->HandleProtocol(boot_img->DeviceHandle, &devid, (void **)&imgpath);
+	
+	if (!EFI_ERROR(rv)) {
+		dp = imgpath;
+
+		while (1) {
+			if (IsDevicePathEndType(NextDevicePathNode(dp)))
+				break;
+			dp = NextDevicePathNode(dp);
+		}
+
+		if (DevicePathSubType(dp) == MSG_URI_DP) {
+		        printf("%S\n", efi_devpath_name(dp));
+				
+			myip.s_addr = 0x0D00A8C0;
+			nameip.s_addr = 0x0100A8C0;
+			rootip.s_addr = 0x0100A8C0;
+			swapip.s_addr = 0x0100A8C0;
+			gateip.s_addr = 0x0100A8C0;
+
+			desc->destip.s_addr = 0x0100A8C0;
+			desc->myip.s_addr   = 0x0D00A8C0;
+			desc->destport = 80;
+			desc->myport = 0;
+			desc->xid = 1;
+		}
+	}
+
+	EFI_TCP4_CONFIG_DATA config;
+	EFI_STATUS status;
+
+	memset(&config, 0, sizeof(config));
+	config.ControlOption = NULL;
+	config.AccessPoint.UseDefaultAddress = FALSE;
+	config.AccessPoint.StationPort = 0;
+	config.AccessPoint.StationAddress.Addr[0] = 192;
+	config.AccessPoint.StationAddress.Addr[1] = 168;
+	config.AccessPoint.StationAddress.Addr[2] = 0;
+	config.AccessPoint.StationAddress.Addr[3] = 13;
+
+	config.AccessPoint.SubnetMask.Addr[0] = 255;
+	config.AccessPoint.SubnetMask.Addr[1] = 255;
+	config.AccessPoint.SubnetMask.Addr[2] = 255;
+	config.AccessPoint.SubnetMask.Addr[3] = 0;
+	
+
+	memcpy(&config.AccessPoint.RemoteAddress.Addr, &desc->destip, sizeof(desc->destip));
+	config.AccessPoint.RemotePort = desc->destport;
+	config.AccessPoint.ActiveFlag = TRUE;
+
+	printf("StationAddress = %d.%d.%d.%d\n", config.AccessPoint.StationAddress.Addr[0],config.AccessPoint.StationAddress.Addr[1],config.AccessPoint.StationAddress.Addr[2],config.AccessPoint.StationAddress.Addr[3]);
+	printf("RemoteAddress = %d.%d.%d.%d\n", config.AccessPoint.RemoteAddress.Addr[0],config.AccessPoint.RemoteAddress.Addr[1],config.AccessPoint.RemoteAddress.Addr[2],config.AccessPoint.RemoteAddress.Addr[3]);
+
+	printf("SubnetMask = %d.%d.%d.%d\n", config.AccessPoint.SubnetMask.Addr[0],config.AccessPoint.SubnetMask.Addr[1],config.AccessPoint.SubnetMask.Addr[2],config.AccessPoint.SubnetMask.Addr[3]);
+	printf("RemotePort = %d\n", config.AccessPoint.RemotePort);
+
+	printf("TCP4i *** = %p\n", tcp4);
+
+	status = tcp4->Configure(tcp4, &config);
+	if (status != EFI_SUCCESS)
+	{
+		printf("tcp4->Configure failed: %d\n", status);
+	}
+
+	printf("OK: TCP4 is configured (tcp4 = %p)!\n", tcp4);
 }
 
 static void
@@ -462,12 +376,20 @@ efinet_init(struct iodesc *desc, void *machdep_hint)
 	EFI_STATUS status;
 	UINT32 mask;
 
+	printf("efinet_init\n");
+
+	/* TODO Make it more obvious this is for TCP */
+	if (nif->nif_driver->netif_ifs[nif->nif_unit].dif_private == NULL)
+		return efinet_init_tcp(desc, machdep_hint);
+
+
 	if (nif->nif_driver->netif_ifs[nif->nif_unit].dif_unit < 0) {
 		printf("Invalid network interface %d\n", nif->nif_unit);
 		return;
 	}
 
 	h = nif->nif_driver->netif_ifs[nif->nif_unit].dif_private;
+
 	status = BS->HandleProtocol(h, &sn_guid, (VOID **)&nif->nif_devdata);
 	if (status != EFI_SUCCESS) {
 		printf("net%d: cannot fetch interface data (status=%lu)\n",
@@ -536,8 +458,88 @@ struct devsw efinet_dev = {
 	.dv_cleanup = NULL
 };
 
+extern EFI_LOADED_IMAGE *boot_img;
+
+static int efinet_dev_init_uri(EFI_HANDLE *boot_handle)
+{
+	struct netif_dif *dif;
+	struct netif_stats *stats;
+	
+	EFI_SERVICE_BINDING_PROTOCOL *tcp4sb = NULL;
+	EFI_TCP4_IO_TOKEN token;
+	EFI_TCP4_TRANSMIT_DATA data;
+	EFI_TCP4_CONNECTION_TOKEN conntoken;
+	EFI_TCP4_CONFIG_DATA config;
+	EFI_STATUS status;
+	EFI_GUID tcp4sb_guid = EFI_TCP4_SERVICE_BINDING_PROTOCOL;
+	EFI_HANDLE h;
+	const int nifs = 1;
+	int err;
+
+	EFI_GUID tcp4_guid = EFI_TCP4_PROTOCOL;
+	int ret = -1;
+	UINTN n;
+	EFI_HANDLE handles[2];
+	extern struct devsw netdev;
+	char *buf = "GET /boot/kernel/kernel HTTP/1.1\r\nUser-Agent: UefiHttpBoot/1.0\r\n\r\n";
+
+	status = BS->LocateProtocol(&tcp4sb_guid, NULL, (VOID**)&tcp4sb);
+	if (status != EFI_SUCCESS)
+	{
+		printf("failed to locate TCP4SB protocol: %d\n", status);
+		while (1) {}
+		return (-1);
+	}
+
+	status = tcp4sb->CreateChild(tcp4sb, &h);
+
+	if (status != EFI_SUCCESS)
+	{
+		printf("Failed to CreateChild: %d\n", status);
+		return (-1);
+	}
+
+	status = BS->OpenProtocol(h, &tcp4_guid, (VOID**)&tcp4, IH, NULL, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+	if (status != EFI_SUCCESS)
+	{
+		printf("Failed to open TCP4 protocol: %d\n", status);
+		return (-1);
+	}
+
+	handles[0] = (EFI_HANDLE*)tcp4sb;
+
+	handles[0] = boot_handle;
+	err = efi_register_handles(&efinet_dev, handles, NULL, 1);
+	if (err != 0)
+		return -1;
+
+	efinetif.netif_ifs = calloc(nifs, sizeof(struct netif_dif));
+	stats = calloc(nifs, sizeof(struct netif_stats));
+	if (efinetif.netif_ifs == NULL || stats == NULL) {
+		free(efinetif.netif_ifs);
+		free(stats);
+		efinetif.netif_ifs = NULL;
+		err = ENOMEM;
+		return (-1);
+	}
+	efinetif.netif_nifs = nifs;
+
+
+	dif = &efinetif.netif_ifs[0];
+	dif->dif_unit = 0;
+	dif->dif_nsel = 1;
+	dif->dif_stats = &stats[0];
+	dif->dif_private = NULL;
+
+	efinet_dev.dv_open = netdev.dv_open;
+	efinet_dev.dv_close = netdev.dv_close;
+	efinet_dev.dv_strategy = netdev.dv_strategy;
+
+	return (0);
+}
+
 static int
-efinet_dev_init()
+efinet_dev_init(void)
 {
 	struct netif_dif *dif;
 	struct netif_stats *stats;
@@ -549,8 +551,32 @@ efinet_dev_init()
 	int err, i, nifs;
 	extern struct devsw netdev;
 
+	EFI_DEVICE_PATH *imgpath;
+	EFI_DEVICE_PATH *dp;
+	EFI_STATUS rv;
+
+	rv = BS->HandleProtocol(boot_img->DeviceHandle, &devid, (void **)&imgpath);
+	
+	if (!EFI_ERROR(rv)) {
+		dp = imgpath;
+
+		while (1) {
+			if (IsDevicePathEndType(NextDevicePathNode(dp)))
+				break;
+			dp = NextDevicePathNode(dp);
+		}
+
+		if (DevicePathSubType(dp) == MSG_URI_DP) {
+		        printf("%S\n", efi_devpath_name(dp));
+			EFI_HANDLE *h = efi_devpath_handle(imgpath);
+			printf("h = %p\n", h);
+			return efinet_dev_init_uri(h);
+		}
+	}
+
 	sz = 0;
 	handles = NULL;
+
 	status = BS->LocateHandle(ByProtocol, &sn_guid, NULL, &sz, NULL);
 	if (status == EFI_BUFFER_TOO_SMALL) {
 		handles = (EFI_HANDLE *)malloc(sz);
@@ -589,7 +615,7 @@ efinet_dev_init()
 			printf("Unable to open network interface %d for "
 					"exclusive access: %lu\n", i,
 					EFI_ERROR_CODE(status));
-	   }
+		}
 
 		handles2[nifs] = handles[i];
 		nifs++;

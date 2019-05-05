@@ -237,6 +237,8 @@ sanity_check_currdev(void)
 {
 	struct stat st;
 
+	printf("SANITY CHECK CURRDEV\n");
+
 	return (stat("/boot/defaults/loader.conf", &st) == 0 ||
 	    stat("/boot/kernel/kernel", &st) == 0);
 }
@@ -469,6 +471,8 @@ find_currdev(bool do_bootmgr, bool is_last,
 	int rv;
 	char *rootdev;
 
+	printf("FIND CURRDEV!\n");
+
 	/*
 	 * First choice: if rootdev is already set, use that, even if
 	 * it's wrong.
@@ -584,6 +588,7 @@ find_currdev(bool do_bootmgr, bool is_last,
 	 * any of the nodes in that path match one of the enumerated
 	 * handles. Currently, this handle list is only for netboot.
 	 */
+
 	if (efi_handle_lookup(boot_img->DeviceHandle, &dev, &unit, &extra) == 0) {
 		set_currdev_devsw(dev, unit);
 		
