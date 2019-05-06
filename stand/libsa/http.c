@@ -43,6 +43,8 @@ __FBSDID("$FreeBSD$");
 #include "net.h"
 #include "netif.h"
 
+#include "fetch.h"
+
 static ssize_t recvhttp(struct iodesc *, void **, void **, time_t, void *);
 static int http_open(const char *, struct open_file *);
 static int http_close(struct open_file *);
@@ -126,6 +128,11 @@ http_open(const char *path, struct open_file *f)
 	netif_connect(io);
 
 	f->f_fsdata = httpfile;
+
+	struct url u;
+	struct url_stat us;
+
+	fetchStatHTTP(&u, &us, NULL);
 
 	printf("http path: %s\n", httpfile->path);
 	return (0);

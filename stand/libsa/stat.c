@@ -43,8 +43,6 @@ stat(str, sb)
 {
 	int fd, rv;
 
-	printf("STAT***\n");
-
 	fd = open(str, O_RDONLY);
 	if (fd < 0)
 		return (-1);

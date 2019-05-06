@@ -125,13 +125,23 @@ int
 asprintf(char **buf, const char *cfmt, ...)
 {
 	int retval;
-	struct print_buf arg;
 	va_list ap;
 
-	*buf = NULL;
 	va_start(ap, cfmt);
-	retval = kvprintf(cfmt, NULL, NULL, 10, ap);
+	retval = vasprintf(buf, cfmt, ap);
 	va_end(ap);
+
+	return retval;
+}
+
+int
+vasprintf(char **buf, const char *cfmt, va_list ap)
+{
+	int retval;
+	struct print_buf arg;
+
+	*buf = NULL;
+	retval = kvprintf(cfmt, NULL, NULL, 10, ap);
 	if (retval <= 0)
 		return (-1);
 
@@ -140,9 +150,7 @@ asprintf(char **buf, const char *cfmt, ...)
 	if (*buf == NULL)
 		return (-1);
 
-	va_start(ap, cfmt);
 	retval = kvprintf(cfmt, &snprint_func, &arg, 10, ap);
-	va_end(ap);
 
 	if (arg.size >= 1)
 		*(arg.buf)++ = 0;

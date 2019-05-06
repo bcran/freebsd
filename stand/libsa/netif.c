@@ -179,8 +179,6 @@ netif_attach(struct netif *nif, struct iodesc *desc, void *machdep_hint)
 {
 	struct netif_driver *drv = nif->nif_driver;
 
-	printf("netif_attach***\n");
-
 #ifdef NETIF_DEBUG
 	if (netif_debug)
 		printf("%s%d: netif_attach\n", drv->netif_bname, nif->nif_unit);
@@ -308,8 +306,6 @@ netif_open(void *machdep_hint)
 	struct iodesc *s;
 	struct netif *nif;
 
-	printf("netif_open\n");
-	
 	/* find a free socket */
 	for (fd = 0, s = sockets; fd < SOPEN_MAX; fd++, s++)
 		if (s->io_netif == (struct netif *)0)

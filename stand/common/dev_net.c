@@ -155,7 +155,6 @@ net_open(struct open_file *f, ...)
 #endif
 		}
 
-		printf("ONE\n");
 		/*
 		 * If network params were not set by netif_open(), try to get
 		 * them via bootp, rarp, etc.
@@ -264,8 +263,6 @@ net_getparams(int sock)
 {
 	char buf[MAXHOSTNAMELEN];
 	n_long rootaddr, smask;
-
-	printf("net_getparams\n");
 
 #ifdef	SUPPORT_BOOTP
 	/*
