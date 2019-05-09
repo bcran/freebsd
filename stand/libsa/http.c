@@ -268,7 +268,7 @@ http_open(const char *path, struct open_file *f)
 
 	struct url_stat us;
 
-	struct url * u = fetchParseURL("http://192.168.0.1/boot/loader.conf");
+	struct url * u = fetchMakeURL("http", "192.168.0.1",  80, path, "", "");
 
 	if (u != NULL) {
 		u->io = io;
@@ -276,7 +276,8 @@ http_open(const char *path, struct open_file *f)
 		fetchFreeURL(u);
 	}
 
-	printf("http path: %s\n", httpfile->path);
+	printf("http_open rc %d\n", res);
+
 	return (res);
 }
 
@@ -287,6 +288,8 @@ http_read(struct open_file *f, void *addr, size_t size,
 	struct http_handle *httpfile = f->f_fsdata;
 	printf("http_read: path=%s, size=%lu\n", httpfile->path, (unsigned long)size);
 
+	while (1) {}
+#if 0
 	if (httpfile->off == 0)
 	{
 		char req[1024];
@@ -309,19 +312,21 @@ http_read(struct open_file *f, void *addr, size_t size,
 		}
 	}
 
-
+#endif
 	return (0);
 }
 
 static int
 http_close(struct open_file *f)
 {
+	printf("http_close\n");
 	return (0);
 }
 
 static int
 http_stat(struct open_file *f, struct stat *sb)
 {
+	printf("http_stat\n");
 	return (0);
 }
 
@@ -457,6 +462,7 @@ fetch_getln(conn_t *conn)
 	conn->buf[0] = '\0';
 	conn->buflen = 0;
 
+
 	do {
 		len = fetch_read(conn, &c, 1);
 		if (len == -1)
@@ -487,8 +493,8 @@ fetch_getln(conn_t *conn)
 
 struct iovec
 {
-	// TODO
-	int a;
+	void *iov_base;
+	size_t iov_len;
 };
 
 
@@ -502,7 +508,10 @@ fetch_write(conn_t *conn, const char *buf, size_t len)
 
 	// TODO
 
-	return 0; //fetch_writev(conn, &iov, 1);
+	if (len == 0)
+		return 0;
+
+	return netif_put(conn->sd, (void*)buf, len);
 }
 
 
@@ -515,9 +524,17 @@ fetch_writev(conn_t *conn, struct iovec *iov, int iovcnt)
 {
 
 	// TODO
+	ssize_t rv;
 
+	for (int i = 0; i < iovcnt; i++)
+	{
+		rv = netif_put(conn->sd,  iov[i].iov_base, iov[i].iov_len);
+		if (rv < 0)
+			break;
+	}
 
-	return (0);
+	return rv;
+
 }
 
 
@@ -530,6 +547,11 @@ fetch_putln(conn_t *conn, const char *str, size_t len)
 	struct iovec iov[2];
 	int ret;
 
+	iov[0].iov_base = (void*)str;
+	iov[0].iov_len = len;
+
+	iov[1].iov_base = "\r\n";
+	iov[1].iov_len = 2;
 
 	if (len == 0)
 		ret = fetch_writev(conn, &iov[1], 1);
@@ -563,11 +585,13 @@ fetchFreeURL(struct url *u)
 ssize_t
 fetch_read(conn_t *conn, char *buf, size_t len)
 {
+	if (len == 0)
+		return 0;
+
 	// TODO
-	printf("fetch_read!!!\n");
 	size_t rv;
-	void *pkt;
-	rv = netif_get(conn->sd, &pkt, 1500);
+	char *pkt;
+	rv = netif_get(conn->sd, (void**)&pkt, len, 1500);
 	if (rv > 0)
 	{
 		memcpy(buf, pkt, len);
@@ -900,11 +924,11 @@ http_cmd(conn_t *conn, const char *fmt, ...)
 {
 	va_list ap;
 	size_t len;
-	char *msg;
+	char *msg = malloc(1024);
 	int r;
 
 	va_start(ap, fmt);
-	len = vasprintf(&msg, fmt, ap);
+	len = vsprintf(msg, fmt, ap);
 	va_end(ap);
 
 	if (msg == NULL) {
@@ -934,6 +958,7 @@ http_get_reply(conn_t *conn)
 
 	if (fetch_getln(conn) == -1)
 		return (-1);
+
 	/*
 	 * A valid status line looks like "HTTP/m.n xyz reason" where m
 	 * and n are the major and minor protocol version numbers and xyz
@@ -958,6 +983,7 @@ http_get_reply(conn_t *conn)
 		return (HTTP_PROTOCOL_ERROR);
 
 	conn->err = (p[1] - '0') * 100 + (p[2] - '0') * 10 + (p[3] - '0');
+
 	return (conn->err);
 }
 

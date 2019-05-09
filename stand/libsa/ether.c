@@ -99,7 +99,7 @@ readether(struct iodesc *d, void **pkt, void **payload, time_t tleft,
 #endif
 
 	ptr = NULL;
-	n = netif_get(d, &ptr, tleft);
+	n = netif_get(d, &ptr, 0, tleft);
 	if (n == -1 || n < sizeof(*eh)) {
 		free(ptr);
 		return (-1);

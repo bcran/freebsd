@@ -142,6 +142,7 @@ vasprintf(char **buf, const char *cfmt, va_list ap)
 
 	*buf = NULL;
 	retval = kvprintf(cfmt, NULL, NULL, 10, ap);
+	printf("vasprintg: retval = %d\n", retval);
 	if (retval <= 0)
 		return (-1);
 
@@ -150,7 +151,9 @@ vasprintf(char **buf, const char *cfmt, va_list ap)
 	if (*buf == NULL)
 		return (-1);
 
-	retval = kvprintf(cfmt, &snprint_func, &arg, 10, ap);
+	retval = kvprintf(cfmt, NULL, (void*)*buf, 10, ap);
+	printf("vasprintg2: retval = %d\n", retval);
+	printf("vasprintg3: buffer = %s\n", *buf);
 
 	if (arg.size >= 1)
 		*(arg.buf)++ = 0;
