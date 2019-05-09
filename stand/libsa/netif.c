@@ -300,6 +300,23 @@ socktodesc(int sock)
 }
 
 int
+desctosock(struct iodesc *s)
+{
+	int fd = 0;
+
+	for (fd = 0; fd < SOPEN_MAX; fd++)
+	{
+		if (&sockets[fd] == s)
+			break;
+	}
+
+	if (fd == SOPEN_MAX)
+		fd = -1;
+
+	return fd;
+}
+
+int
 netif_open(void *machdep_hint)
 {
 	int fd;

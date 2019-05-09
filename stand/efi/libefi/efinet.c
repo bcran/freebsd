@@ -153,6 +153,43 @@ efinet_put(struct iodesc *desc, void *pkt, size_t len)
 static ssize_t
 efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
 {
+	EFI_TCP4_IO_TOKEN iot;
+	EFI_TCP4_RECEIVE_DATA data;
+	void *buf;
+
+		EFI_STATUS status;
+		int n;
+
+	const int len = 10248576;
+
+	buf = malloc(len);
+	data.UrgentFlag = FALSE;
+	data.DataLength = len;
+	data.FragmentCount = 1;
+	data.FragmentTable[0].FragmentBuffer = buf;
+	data.FragmentTable[0].FragmentLength = len;
+
+
+
+	iot.Packet.RxData = &data;
+	status = BS->CreateEvent(EVT_NOTIFY_SIGNAL, TPL_CALLBACK, &recieved, &iot.CompletionToken.Status, &iot.CompletionToken.Event);
+
+	if (status != EFI_SUCCESS)
+		printf("Faield to CreateEvent: %d\n", status);
+
+	status = tcp4->Receive(tcp4, &iot);
+	if (status != EFI_SUCCESS)
+	{
+		printf("Transmit failed: %d\n", status);
+	}
+
+	BS->WaitForEvent(1, &mtx, &n);
+
+}
+
+static ssize_t
+efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
+{
 	struct netif *nif = desc->io_netif;
 	EFI_SIMPLE_NETWORK *net;
 	EFI_STATUS status;
@@ -162,6 +199,11 @@ efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
 	ssize_t ret = -1;
 
 	printf("efinet_get\n");
+
+	if (tcp4 != NULL)
+	{
+		return efinet_get_tcp(desc, pkt, timeout);
+	}
 
 	net = nif->nif_devdata;
 	if (net == NULL)
@@ -191,7 +233,7 @@ efinet_get(struct iodesc *desc, void **pkt, time_t timeout)
 }
 
 EFI_EVENT mtx;
-EFI_TCP4 *tcp4;
+EFI_TCP4 *tcp4 = NULL;
 
 static void EFIAPI
 connected(void *evt, void *ctx)
@@ -206,10 +248,17 @@ connected(void *evt, void *ctx)
 static void EFIAPI
 transmitted(void *evt, void *ctx)
 {
-	EFI_EVENT event = evt;
+	EFI_EVENT *event = evt;
 	EFI_STATUS *s = ctx;
 	printf("Transmitted status: %d\n", *s);
 	BS->SignalEvent(mtx);
+}
+
+static void EFIAPI
+recieved(void *evt, void *ctx)
+{
+	EFI_STATUS *s = ctx;
+	EFI_EVENT event = evt;
 }
 
 static int

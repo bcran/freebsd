@@ -63,5 +63,6 @@ int		netif_open(void *);
 int		netif_close(int);
 
 struct iodesc	*socktodesc(int);
+int desctosock(struct iodesc *s);
 	
 #endif /* __SYS_LIBNETBOOT_NETIF_H */

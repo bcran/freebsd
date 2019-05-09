@@ -159,8 +159,6 @@ CFLAGS.bzipfs.c+= -I${SRCTOP}/contrib/bzip2
 .PATH: ${SYSDIR}/libkern
 SRCS+=  explicit_bzero.c crc32_libkern.c
 
-SRCS+=	httpfetch.c
-
 # Maybe GELI
 .if ${MK_LOADER_GELI} == "yes"
 .include "${SASRC}/geli/Makefile.inc"

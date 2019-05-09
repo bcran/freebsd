@@ -115,4 +115,13 @@ DbgPrint (
     ...
     );
 
+void DeadLoop(void)
+{
+	int Index = 0;
+
+	while (Index != 1) {
+		;
+	}
+}
+
 #endif

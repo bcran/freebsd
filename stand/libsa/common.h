@@ -1,7 +1,7 @@
 /*-
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 1998-2014 Dag-Erling Smørgrav
+ * Copyright (c) 1998-2014 Dag-Erling Sm��rgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 /* Connection */
 typedef struct fetchconn conn_t;
 struct fetchconn {
-	int		 sd;		/* socket descriptor */
+	void	 	*sd;		/* socket descriptor */
 	char		*buf;		/* buffer */
 	size_t		 bufsize;	/* buffer size */
 	size_t		 buflen;	/* length of buffer contents */
@@ -80,7 +80,7 @@ int		 fetch_default_port(const char *);
 int		 fetch_default_proxy_port(const char *);
 struct addrinfo *fetch_resolve(const char *, int, int);
 int		 fetch_bind(int, int, const char *);
-conn_t		*fetch_connect(const char *, int, int, int);
+conn_t		*fetch_connect(struct url *, int, int);
 conn_t		*fetch_reopen(int);
 conn_t		*fetch_ref(conn_t *);
 #ifdef WITH_SSL

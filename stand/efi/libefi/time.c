@@ -266,11 +266,12 @@ time_t
 time(time_t *tloc)
 {
 	struct timeval tv;
+	time_t t;
 
 	memset(&tv, 0, sizeof(tv));
 	EFI_GetTimeOfDay(&tv, NULL);
 
-	if (tloc)
+	if (tloc != NULL)
 		*tloc = tv.tv_sec;
 	return (tv.tv_sec);
 }
@@ -281,3 +282,84 @@ getsecs(void)
 
     return (time(NULL));
 }
+
+
+struct tm*
+gmtime(const time_t *clock)
+{
+	static struct tm t;
+	EFI_STATUS Status;
+	EFI_TIME et;
+
+	memset(&t, 0, sizeof(t));
+	Status = RS->GetTime(&et, NULL);
+	if (EFI_ERROR(Status))
+		return NULL;
+
+
+	t.tm_year = et.Year - 1900;
+	t.tm_mon = et.Month;
+	t.tm_mday = et.Day;
+	t.tm_hour = et.Hour;
+	t.tm_min = et.Minute;
+	t.tm_sec = et.Second;
+
+	t.tm_isdst = (et.Daylight == EFI_TIME_IN_DAYLIGHT) ? 1 : 0;
+	t.tm_zone = "GMT";
+
+	t.tm_gmtoff = 0;
+	t.tm_yday = 0;
+	t.tm_wday = 0;
+
+	return &t;
+}
+
+time_t
+timegm(struct tm *t)
+{
+	EFI_TIME EFITime;
+	time_t tt;
+
+	EFITime.Year = 1900 + t->tm_year;
+	EFITime.Month = t->tm_mon;
+	EFITime.Day = t->tm_mday;
+	EFITime.Hour = t->tm_hour;
+	EFITime.Minute = t->tm_min;
+	EFITime.Second = t->tm_sec;
+	EFITime.Nanosecond = 0;
+	EFITime.TimeZone = 0;
+	EFITime.Daylight = (t->tm_isdst == 1) ? EFI_TIME_IN_DAYLIGHT : 0;
+
+	tt = from_efi_time(&EFITime);
+	return tt;
+}
+
+char *
+strptime(const char * restrict buf, const char * restrict format,
+		 struct tm * restrict timeptr)
+{
+	memset(timeptr, 0, sizeof(*timeptr));
+
+	// TODO parse buf and format instead of using dummy values
+
+	timeptr->tm_year = 115; // 2015
+	timeptr->tm_mon = 0;	// January
+	timeptr->tm_mday = 1;	// 1st
+	timeptr->tm_hour = 12;	// 12:00
+	timeptr->tm_min = 0;
+	timeptr->tm_sec = 0;
+
+	return (char*)buf;
+}
+
+size_t
+strftime(char * restrict buf, size_t maxsize, const char * restrict format, const struct tm * restrict timeptr)
+{
+
+	// TODO
+
+	sprintf(buf, "2015 12:00:00 UTC");
+	return 0;
+}
+
+

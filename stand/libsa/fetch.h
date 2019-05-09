@@ -1,7 +1,7 @@
 /*-
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 1998-2004 Dag-Erling Smørgrav
+ * Copyright (c) 1998-2004 Dag-Erling Sm��rgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,6 @@
 
 // EFI
 #define MAXHOSTNAMELEN 256
-#define PATH_MAX 512
 typedef void* FILE;
 
 
@@ -50,12 +49,13 @@ struct url {
 	char		 user[URL_USERLEN+1];
 	char		 pwd[URL_PWDLEN+1];
 	char		 host[MAXHOSTNAMELEN+1];
-	int		 port;
+	int			 port;
 	char		*doc;
 	off_t		 offset;
 	size_t		 length;
 	time_t		 ims_time;
-	int		 netrcfd;
+	int			 netrcfd;
+	void		*io;
 };
 
 struct url_stat {
